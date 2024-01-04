@@ -1,0 +1,75 @@
+// Jenkins Pipeline Script
+
+// Define the pipeline to run on any available agent
+pipeline {
+    agent any
+
+    // Define tools to be used in the pipeline
+    tools {
+        maven "MAVEN3"
+        jdk "OracleJDK8"
+    }
+
+    // Define the stages of the pipeline
+    stages {
+        // Stage 1: Fetch Code from Git repository
+        stage('Fetch Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/hkhcoder/vprofile-project.git'
+            }
+        }
+
+        // Stage 2: Build the project using Maven
+        stage('Build') {
+            steps {
+                sh 'mvn install -DskipTests'
+            }
+
+            post {
+                // Execute the following block only if the 'Build' stage is successful
+                success {
+                    echo 'Now Archiving artifacts.'
+                    // Archive artifacts for later use or deployment
+                    archiveArtifacts artifacts: '**/*.war'
+                }
+            }
+        }
+
+        // Stage 3: Run Unit Tests
+        stage('UNIT TESTS') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        // Stage 4: Checkstyle Analysis
+        stage('Checkstyle Analysis') {
+            steps {
+                // Run Checkstyle analysis on the code
+                sh 'mvn checkstyle:checkstyle'
+            }
+        }
+
+        // Stage 5: SonarQube Analysis
+        stage('Sonar Analysis') {
+            // Set up environment variables for SonarQube scanner
+            environment {
+                scannerHome = tool 'sonar4.7'
+            }
+
+            steps {
+                // Run SonarQube scanner with specified parameters
+                withSonarQubeEnv('sonar') {
+                    sh '''${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=vprofile \
+                    -Dsonar.projectName=vprofile \
+                    -Dsonar.projectVersion=1.0 \
+                    -Dsonar.sources=src/ \
+                    -Dsonar.java.binaries=target/test-classes/com/visualpathit/account/controllerTest/ \
+                    -Dsonar.junit.reportsPath=target/surefire-reports/ \
+                    -Dsonar.jacoco.reportsPath=target/jacoco.exec \
+                    -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml'''
+                }
+            }
+        }
+    }
+}
