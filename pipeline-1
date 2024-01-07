@@ -15,6 +15,7 @@ pipeline {
         // Stage 1: Fetch Code from Git repository
         stage('Fetch Code') {
             steps {
+                // Clone the Git repository from the specified URL and branch
                 git branch: 'main', url: 'https://github.com/hkhcoder/vprofile-project.git'
             }
         }
@@ -22,6 +23,7 @@ pipeline {
         // Stage 2: Build the project using Maven
         stage('Build') {
             steps {
+                // Build the project using Maven, skipping tests
                 sh 'mvn install -DskipTests'
             }
 
@@ -29,7 +31,7 @@ pipeline {
                 // Execute the following block only if the 'Build' stage is successful
                 success {
                     echo 'Now Archiving artifacts.'
-                    // Archive artifacts for later use or deployment
+                    // Archive artifacts (WAR files) for later use or deployment
                     archiveArtifacts artifacts: '**/*.war'
                 }
             }
@@ -38,6 +40,7 @@ pipeline {
         // Stage 3: Run Unit Tests
         stage('UNIT TESTS') {
             steps {
+                // Run unit tests using Maven
                 sh 'mvn test'
             }
         }
@@ -71,11 +74,36 @@ pipeline {
                 }
             }
         }
+
+        // Stage 6: Quality Gate
         stage('Quality Gate') {
             steps {
+                // Wait for the SonarQube Quality Gate to complete
                 timeout(time: 1, unit: 'HOURS') {
                     waitForQualityGate abortPipeline: true
                 }
+            }
+        }
+
+        // Stage 7: Upload Artifact to Nexus
+        stage("UploadArtifact") {
+            steps {
+                // Use Nexus Artifact Uploader to deploy the WAR file to Nexus repository
+                nexusArtifactUploader(
+                    nexusVersion: 'nexus3',
+                    protocol: 'http',
+                    nexusUrl: '3.85.131.165:8081',
+                    groupId: 'QA',
+                    version: "${env.BUILD_ID}-${env.BUILD_TIMESTAMP}",
+                    repository: 'vprofile-repo',
+                    credentialsId: 'nexuslogin',
+                    artifacts: [
+                        [artifactId: 'vproapp',
+                        classifier: '',
+                        file: 'target/vprofile-v2.war',
+                        type: 'war']
+                    ]
+                )
             }
         }
     }
